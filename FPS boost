@@ -1,7 +1,6 @@
 --[[ 
-    ENDER AI FLOW - V1.4 (AUTO-REGULATOR)
-    Logic: Smart FPS Detection -> Auto Throttle Speed -> Auto Optimize Visuals
-    No Manual Buttons Needed.
+    ENDER PRO DASHBOARD V1.3
+    Updates: Full Draggable (UI + Toggle) ✅ | Smooth Visual Transition ✅ | Multi-Hit ✅
 ]]
 
 local RunService = game:GetService("RunService")
@@ -13,42 +12,53 @@ local UserInputService = game:GetService("UserInputService")
 
 local player = Players.LocalPlayer
 local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "EnderAI_Flow"
+screenGui.Name = "EnderDash_FullDraggable"
 screenGui.ResetOnSpawn = false
 screenGui.Parent = player:WaitForChild("PlayerGui")
 
--- === 1. VISUAL OPTIMIZER (SMART) ===
-local visualsOptimized = false
-local function setVisuals(optimize)
-    if visualsOptimized == optimize then return end -- Bar bar repeat na kare
-    visualsOptimized = optimize
+-- === 1. REUSABLE DRAG FUNCTION (FOR MOBILE/PC) ===
+local function makeDraggable(guiObject)
+    local dragging, dragInput, dragStart, startPos
     
-    Lighting.GlobalShadows = not optimize
-    local mat = optimize and Enum.Material.Plaster or Enum.Material.Plastic
-    
-    -- Chunk processing to prevent lag during transition
-    task.spawn(function()
-        for _, obj in pairs(Workspace:GetDescendants()) do
-            if obj:IsA("Part") or obj:IsA("MeshPart") then
-                obj.Material = mat
-            elseif obj:IsA("Texture") or obj:IsA("Decal") then
-                obj.Transparency = optimize and 0.5 or 0
-            end
+    local function update(input)
+        local delta = input.Position - dragStart
+        guiObject.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end
+
+    guiObject.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            dragStart = input.Position
+            startPos = guiObject.Position
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then dragging = false end
+            end)
+        end
+    end)
+
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            update(input)
         end
     end)
 end
 
--- === 2. UI SETUP ===
+-- === 2. UI ELEMENTS SETUP ===
 local toggleMain = Instance.new("TextButton")
-toggleMain.Size, toggleMain.Position = UDim2.new(0, 80, 0, 35), UDim2.new(0.05, 0, 0.1, 0)
-toggleMain.BackgroundColor3, toggleMain.Text = Color3.fromRGB(150, 0, 0), "ENDER"
-toggleMain.TextColor3, toggleMain.Font = Color3.fromRGB(255, 255, 255), Enum.Font.GothamBlack
+toggleMain.Size = UDim2.new(0, 80, 0, 35)
+toggleMain.Position = UDim2.new(0.05, 0, 0.1, 0)
+toggleMain.BackgroundColor3 = Color3.fromRGB(150, 0, 0)
+toggleMain.Text = "ENDER"
+toggleMain.TextColor3 = Color3.fromRGB(255, 255, 255)
+toggleMain.Font = Enum.Font.GothamBlack
 toggleMain.Parent = screenGui
 Instance.new("UICorner", toggleMain)
 
 local mainFrame = Instance.new("Frame")
-mainFrame.Size, mainFrame.Position = UDim2.new(0, 170, 0, 100), UDim2.new(0.05, 0, 0.16, 0)
-mainFrame.BackgroundColor3, mainFrame.BackgroundTransparency = Color3.fromRGB(15, 15, 15), 0.2
+mainFrame.Size = UDim2.new(0, 160, 0, 120)
+mainFrame.Position = UDim2.new(0.05, 0, 0.16, 0)
+mainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+mainFrame.BackgroundTransparency = 0.2
 mainFrame.Visible = false
 mainFrame.Parent = screenGui
 Instance.new("UICorner", mainFrame)
@@ -61,74 +71,81 @@ fpsLabel.TextColor3 = Color3.fromRGB(0, 255, 150)
 fpsLabel.Font = Enum.Font.GothamBold
 fpsLabel.Parent = mainFrame
 
--- STATUS LABEL (Replaces Manual Button)
-local statusLabel = Instance.new("TextLabel")
-statusLabel.Size = UDim2.new(0.9, 0, 0, 40)
-statusLabel.Position = UDim2.new(0.05, 0, 0.45, 0)
-statusLabel.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-statusLabel.Text = "AI: ANALYZING..."
-statusLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-statusLabel.Font = Enum.Font.GothamBold
-statusLabel.TextSize = 12
-statusLabel.Parent = mainFrame
-Instance.new("UICorner", statusLabel)
+local fastModeBtn = Instance.new("TextButton")
+fastModeBtn.Size = UDim2.new(0.85, 0, 0, 40)
+fastModeBtn.Position = UDim2.new(0.07, 0, 0.45, 0)
+fastModeBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+fastModeBtn.Text = "FAST MODE: OFF"
+fastModeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+fastModeBtn.Font = Enum.Font.GothamBold
+fastModeBtn.Parent = mainFrame
+Instance.new("UICorner", fastModeBtn)
 
--- Drag Logic
-local function makeDraggable(guiObject)
-    local dragging, dragStart, startPos
-    guiObject.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            dragging, dragStart, startPos = true, input.Position, guiObject.Position
-            input.Changed:Connect(function() if input.UserInputState == Enum.UserInputState.End then dragging = false end end)
-        end
-    end)
-    UserInputService.InputChanged:Connect(function(input)
-        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-            local delta = input.Position - dragStart
-            guiObject.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+-- Apply dragging to BOTH elements
+makeDraggable(toggleMain)
+makeDraggable(mainFrame)
+
+-- === 3. SMOOTH VISUAL OPTIMIZER (STAGGERED) ===
+local function gradualOptimize(enable)
+    Lighting.GlobalShadows = not enable
+    local targetMaterial = enable and Enum.Material.Plaster or Enum.Material.Plastic
+    local targetTransparency = enable and 0.5 or 0
+    
+    local descendants = Workspace:GetDescendants()
+    local count = 0
+    
+    task.spawn(function()
+        for _, obj in pairs(descendants) do
+            if obj:IsA("Part") or obj:IsA("MeshPart") then
+                obj.Material = targetMaterial
+                count = count + 1
+            elseif obj:IsA("Texture") or obj:IsA("Decal") then
+                obj.Transparency = targetTransparency
+                count = count + 1
+            end
+            
+            -- Chunk processing to prevent FPS drops
+            if count >= 150 then
+                count = 0
+                task.wait() 
+            end
         end
     end)
 end
-makeDraggable(toggleMain)
-makeDraggable(mainFrame)
-toggleMain.MouseButton1Click:Connect(function() mainFrame.Visible = not mainFrame.Visible end)
 
--- === 3. AI FLOW LOGIC ===
-local currentFPS = 60
-local attackDelay = 0.1 -- Default Safe Speed
+-- === 4. LOGIC LOOPS ===
+toggleMain.MouseButton1Click:Connect(function() 
+    mainFrame.Visible = not mainFrame.Visible 
+end)
 
-RunService.RenderStepped:Connect(function(step)
-    currentFPS = math.floor(1 / step)
-    fpsLabel.Text = "FPS: " .. currentFPS
+local fastEnabled = false
+fastModeBtn.MouseButton1Click:Connect(function()
+    fastEnabled = not fastEnabled
+    fastModeBtn.Text = "FAST MODE: " .. (fastEnabled and "ON" or "OFF")
+    fastModeBtn.BackgroundColor3 = fastEnabled and Color3.fromRGB(0, 150, 255) or Color3.fromRGB(40, 40, 40)
     
-    -- SMART REGULATOR
-    if currentFPS < 35 then
-        -- LOW FPS: Enable Boost, Slow Down Attacks
-        setVisuals(true)
-        attackDelay = 0.2 -- Slow down to save crash
-        statusLabel.Text = "AI: BOOSTING (STABLE)"
-        statusLabel.TextColor3 = Color3.fromRGB(255, 150, 0) -- Orange
-    elseif currentFPS > 50 then
-        -- HIGH FPS: Max Speed
-        setVisuals(false) -- Optional: Keep true if you prefer dull look
-        attackDelay = 0.01 -- MAX SPEED
-        statusLabel.Text = "AI: MAX SPEED (FAST)"
-        statusLabel.TextColor3 = Color3.fromRGB(0, 255, 150) -- Green
-    else
-        -- AVERAGE: Balanced
-        attackDelay = 0.05
-        statusLabel.Text = "AI: BALANCED"
-        statusLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    -- Smooth transition start
+    gradualOptimize(fastEnabled)
+end)
+
+-- FPS Loop (RenderStepped for accuracy)
+local lastTime = tick()
+local frameCount = 0
+RunService.RenderStepped:Connect(function()
+    frameCount = frameCount + 1
+    local currentTime = tick()
+    if currentTime - lastTime >= 1 then
+        fpsLabel.Text = "FPS: " .. math.floor(frameCount / (currentTime - lastTime))
+        frameCount = 0
+        lastTime = currentTime
     end
 end)
 
--- AUTO-ATTACK LOOP (Variable Speed)
-task.spawn(function()
-    while true do
-        if mainFrame.Visible then -- Only attack when UI is active (Safe switch)
-             VirtualUser:Button1Down(Vector2.new(0,0), Workspace.CurrentCamera.CFrame)
-             VirtualUser:Button1Up(Vector2.new(0,0), Workspace.CurrentCamera.CFrame)
-        end
-        task.wait(attackDelay) -- AI controls this delay
+-- Fast Multi-Hit Clicker (Heartbeat)
+RunService.Heartbeat:Connect(function()
+    if fastEnabled then
+        VirtualUser:Button1Down(Vector2.new(0,0), Workspace.CurrentCamera.CFrame)
+        task.wait(0.01)
+        VirtualUser:Button1Up(Vector2.new(0,0), Workspace.CurrentCamera.CFrame)
     end
 end)
