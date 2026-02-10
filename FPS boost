@@ -1,0 +1,151 @@
+--[[ 
+    ENDER PRO DASHBOARD V1.3
+    Updates: Full Draggable (UI + Toggle) ✅ | Smooth Visual Transition ✅ | Multi-Hit ✅
+]]
+
+local RunService = game:GetService("RunService")
+local Lighting = game:GetService("Lighting")
+local Workspace = game:GetService("Workspace")
+local Players = game:GetService("Players")
+local VirtualUser = game:GetService("VirtualUser")
+local UserInputService = game:GetService("UserInputService")
+
+local player = Players.LocalPlayer
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "EnderDash_FullDraggable"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = player:WaitForChild("PlayerGui")
+
+-- === 1. REUSABLE DRAG FUNCTION (FOR MOBILE/PC) ===
+local function makeDraggable(guiObject)
+    local dragging, dragInput, dragStart, startPos
+    
+    local function update(input)
+        local delta = input.Position - dragStart
+        guiObject.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end
+
+    guiObject.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            dragStart = input.Position
+            startPos = guiObject.Position
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then dragging = false end
+            end)
+        end
+    end)
+
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            update(input)
+        end
+    end)
+end
+
+-- === 2. UI ELEMENTS SETUP ===
+local toggleMain = Instance.new("TextButton")
+toggleMain.Size = UDim2.new(0, 80, 0, 35)
+toggleMain.Position = UDim2.new(0.05, 0, 0.1, 0)
+toggleMain.BackgroundColor3 = Color3.fromRGB(150, 0, 0)
+toggleMain.Text = "ENDER"
+toggleMain.TextColor3 = Color3.fromRGB(255, 255, 255)
+toggleMain.Font = Enum.Font.GothamBlack
+toggleMain.Parent = screenGui
+Instance.new("UICorner", toggleMain)
+
+local mainFrame = Instance.new("Frame")
+mainFrame.Size = UDim2.new(0, 160, 0, 120)
+mainFrame.Position = UDim2.new(0.05, 0, 0.16, 0)
+mainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+mainFrame.BackgroundTransparency = 0.2
+mainFrame.Visible = false
+mainFrame.Parent = screenGui
+Instance.new("UICorner", mainFrame)
+
+local fpsLabel = Instance.new("TextLabel")
+fpsLabel.Size = UDim2.new(1, 0, 0, 30)
+fpsLabel.BackgroundTransparency = 1
+fpsLabel.Text = "FPS: --"
+fpsLabel.TextColor3 = Color3.fromRGB(0, 255, 150)
+fpsLabel.Font = Enum.Font.GothamBold
+fpsLabel.Parent = mainFrame
+
+local fastModeBtn = Instance.new("TextButton")
+fastModeBtn.Size = UDim2.new(0.85, 0, 0, 40)
+fastModeBtn.Position = UDim2.new(0.07, 0, 0.45, 0)
+fastModeBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+fastModeBtn.Text = "FAST MODE: OFF"
+fastModeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+fastModeBtn.Font = Enum.Font.GothamBold
+fastModeBtn.Parent = mainFrame
+Instance.new("UICorner", fastModeBtn)
+
+-- Apply dragging to BOTH elements
+makeDraggable(toggleMain)
+makeDraggable(mainFrame)
+
+-- === 3. SMOOTH VISUAL OPTIMIZER (STAGGERED) ===
+local function gradualOptimize(enable)
+    Lighting.GlobalShadows = not enable
+    local targetMaterial = enable and Enum.Material.Plaster or Enum.Material.Plastic
+    local targetTransparency = enable and 0.5 or 0
+    
+    local descendants = Workspace:GetDescendants()
+    local count = 0
+    
+    task.spawn(function()
+        for _, obj in pairs(descendants) do
+            if obj:IsA("Part") or obj:IsA("MeshPart") then
+                obj.Material = targetMaterial
+                count = count + 1
+            elseif obj:IsA("Texture") or obj:IsA("Decal") then
+                obj.Transparency = targetTransparency
+                count = count + 1
+            end
+            
+            -- Chunk processing to prevent FPS drops
+            if count >= 150 then
+                count = 0
+                task.wait() 
+            end
+        end
+    end)
+end
+
+-- === 4. LOGIC LOOPS ===
+toggleMain.MouseButton1Click:Connect(function() 
+    mainFrame.Visible = not mainFrame.Visible 
+end)
+
+local fastEnabled = false
+fastModeBtn.MouseButton1Click:Connect(function()
+    fastEnabled = not fastEnabled
+    fastModeBtn.Text = "FAST MODE: " .. (fastEnabled and "ON" or "OFF")
+    fastModeBtn.BackgroundColor3 = fastEnabled and Color3.fromRGB(0, 150, 255) or Color3.fromRGB(40, 40, 40)
+    
+    -- Smooth transition start
+    gradualOptimize(fastEnabled)
+end)
+
+-- FPS Loop (RenderStepped for accuracy)
+local lastTime = tick()
+local frameCount = 0
+RunService.RenderStepped:Connect(function()
+    frameCount = frameCount + 1
+    local currentTime = tick()
+    if currentTime - lastTime >= 1 then
+        fpsLabel.Text = "FPS: " .. math.floor(frameCount / (currentTime - lastTime))
+        frameCount = 0
+        lastTime = currentTime
+    end
+end)
+
+-- Fast Multi-Hit Clicker (Heartbeat)
+RunService.Heartbeat:Connect(function()
+    if fastEnabled then
+        VirtualUser:Button1Down(Vector2.new(0,0), Workspace.CurrentCamera.CFrame)
+        task.wait(0.01)
+        VirtualUser:Button1Up(Vector2.new(0,0), Workspace.CurrentCamera.CFrame)
+    end
+end)
